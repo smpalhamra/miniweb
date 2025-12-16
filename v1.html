@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Web Manajemen Siswa</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  .nav-link { cursor: pointer; }
+  .active-page { font-weight: bold; }
+  /* styling output list */
+  .data-diri-line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .small-muted { font-size:0.9rem; color:#6c757d; }
+</style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="#">Manajemen Siswa</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link active-page" id="linkBeranda">Beranda</a></li>
+        <li class="nav-item"><a class="nav-link" id="linkOlahData">Olah Data Siswa</a></li>
+        <li class="nav-item"><a class="nav-link" id="linkProfil">Profil Developer</a></li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Halaman Beranda -->
+<div class="container mt-4" id="halamanBeranda">
+  <div class="card text-center">
+    <div class="card-body">
+      <h2 class="card-title">Selamat Datang!</h2>
+      <p class="card-text">Ini adalah mini web manajemen data siswa. Gunakan menu di atas untuk mengelola data.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Halaman Olah Data Siswa -->
+<div class="container mt-4" id="halamanOlahData" style="display:none;">
+  <h2 class="mb-4">Olah Data Siswa</h2>
+
+  <div class="mb-3">
+    <input type="file" id="fileInput" class="form-control" accept=".xlsx,.xls,.csv,.json" />
+  </div>
+
+  <div class="mb-3 d-flex gap-2 align-items-center flex-wrap">
+    <select id="filterRombel" class="form-select" style="width:200px; display:none;">
+      <option value="">-- Filter Rombel --</option>
+    </select>
+    <button id="toggleData" class="btn btn-primary" style="display:none;">Tampilkan Data Rincian</button>
+    <button id="btnDataDiri" class="btn btn-info" style="display:none;">Data Diri</button>
+    <input type="text" id="searchInput" class="form-control" placeholder="Cari nama..." style="width:200px; display:none;">
+    <button id="exportJSON" class="btn btn-success" style="display:none;">Export JSON</button>
+  </div>
+
+  <div id="rekap" class="mb-4"></div>
+  <div id="filteredTable"></div>
+  <canvas id="chartRombel" style="max-width:600px; display:none;"></canvas>
+  <div id="errorMsg" class="text-danger mt-3"></div>
+</div>
+
+<!-- Modal Detail Siswa -->
+<div class="modal fade" id="siswaModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Detail Data Siswa</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="siswaDetail"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Data Diri Kelas (List Output) -->
+<div class="modal fade" id="dataDiriModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Data Diri - Daftar Siswa per Kelas</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3 d-flex gap-2 align-items-center">
+          <label class="small-muted">Pilih Kelas:</label>
+          <select id="ddRombel" class="form-select" style="width:300px;"></select>
+          <button id="generateList" class="btn btn-primary">Tampilkan</button>
+          <button id="printList" class="btn btn-outline-secondary">Print</button>
+          <button id="downloadCSV" class="btn btn-success">Download CSV</button>
+        </div>
+		<div class="mb-3">
+		<label class="fw-bold">Pilih Kolom untuk CSV:</label>
+		<div id="kolomExport" class="row row-cols-2 row-cols-md-3"></div>
+		</div>
+        <div id="dataDiriOutput" class="mt-3"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Halaman Profil Developer -->
+<div class="container mt-4" id="halamanProfil" style="display:none;">
+  <div class="card mb-3" style="max-width:600px;">
+    <div class="row g-0">
+      <div class="col-md-4">
+        <img src="https://via.placeholder.com/150" class="img-fluid rounded-start" alt="Foto Developer">
+      </div>
+      <div class="col-md-8">
+        <div class="card-body">
+          <h5 class="card-title">Nama Developer</h5>
+          <p class="card-text">Email: developer@example.com</p>
+          <p class="card-text">GitHub: <a href="https://github.com/" target="_blank">github.com/dev</a></p>
+          <p class="card-text">LinkedIn: <a href="https://www.linkedin.com/" target="_blank">linkedin.com/in/dev</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ==================== Navigasi Halaman ====================
+const halaman = {
+  beranda: document.getElementById("halamanBeranda"),
+  olahData: document.getElementById("halamanOlahData"),
+  profil: document.getElementById("halamanProfil")
+};
+const links = {
+  beranda: document.getElementById("linkBeranda"),
+  olahData: document.getElementById("linkOlahData"),
+  profil: document.getElementById("linkProfil")
+};
+function showPage(page){
+  Object.values(halaman).forEach(h=>h.style.display="none");
+  halaman[page].style.display="block";
+  Object.values(links).forEach(l=>l.classList.remove("active-page"));
+  links[page].classList.add("active-page");
+}
+links.beranda.onclick = ()=>showPage("beranda");
+links.olahData.onclick = ()=>showPage("olahData");
+links.profil.onclick = ()=>showPage("profil");
+
+// ==================== Olah Data Siswa ====================
+const fileInput = document.getElementById("fileInput");
+const rekapDiv = document.getElementById("rekap");
+const toggleDataBtn = document.getElementById("toggleData");
+const filteredTable = document.getElementById("filteredTable");
+const errorMsg = document.getElementById("errorMsg");
+const searchInput = document.getElementById("searchInput");
+const exportJSONBtn = document.getElementById("exportJSON");
+const filterRombel = document.getElementById("filterRombel");
+const chartCanvas = document.getElementById("chartRombel");
+const btnDataDiri = document.getElementById("btnDataDiri");
+const ddRombel = document.getElementById("ddRombel");
+const dataDiriOutput = document.getElementById("dataDiriOutput");
+let jsonData = [], filteredData = [], chartInstance;
+// ==================== GLOBAL UNTUK DATA DIRI ====================
+let dataDiriAktif = [];
+let kolomMap = {};
+
+
+// helper untuk cari nama kolom fleksibel
+function getCol(obj, fragments){
+  const keys = Object.keys(obj||{});
+  for(const f of fragments){
+    const found = keys.find(k=>k.toLowerCase().includes(f));
+    if(found) return found;
+  }
+  return null;
+}
+
+fileInput.addEventListener("change", async(event)=>{
+  const file = event.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  const ext = file.name.split('.').pop().toLowerCase();
+
+  reader.onload = (e)=>{
+    try{
+      if(ext==="json"){
+        jsonData = JSON.parse(e.target.result);
+        if(!Array.isArray(jsonData)) throw "JSON bukan array";
+      } else {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data,{type:"array"});
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const allRows = XLSX.utils.sheet_to_json(sheet,{header:1,defval:""});
+        if(allRows.length===0){ errorMsg.textContent="File kosong"; return; }
+        let headerRowIndex=-1;
+        for(let i=0;i<allRows.length;i++){
+          const row=allRows[i].map(v=>v.toString().toLowerCase());
+          if(row.some(v=>v.includes("rombel")) && row.some(v=>v.includes("jk"))){ headerRowIndex=i; break; }
+        }
+        if(headerRowIndex===-1){ errorMsg.textContent="❌ Tidak menemukan baris header"; return; }
+        const headers = allRows[headerRowIndex];
+        const rows = allRows.slice(headerRowIndex+1).filter(r=>r.some(c=>c.toString().trim()!==""));
+        jsonData = rows.map(r=>Object.fromEntries(headers.map((h,i)=>[h,r[i]||""])));
+      }
+      errorMsg.textContent="";
+      filteredData=jsonData;
+      buatRekap(filteredData);
+      renderTable(filteredData);
+      setupFilterRombel(filteredData);
+      setupDataDiriButton(filteredData);
+      toggleDataBtn.style.display="inline-block";
+      searchInput.style.display="inline-block";
+      exportJSONBtn.style.display="inline-block";
+      chartCanvas.style.display="block";
+      updateChart(filteredData);
+    }catch(err){ console.error(err); errorMsg.textContent="❌ Error membaca file";}
+  };
+  if(ext==="json") reader.readAsText(file); else reader.readAsArrayBuffer(file);
+});
+
+toggleDataBtn.onclick = ()=>{
+  if(filteredTable.style.display==="none"){
+    filteredTable.style.display="block"; toggleDataBtn.textContent="Sembunyikan Data Rincian";
+  }else{ filteredTable.style.display="none"; toggleDataBtn.textContent="Tampilkan Data Rincian";}
+};
+
+searchInput.addEventListener("input",()=>{
+  filterAndRender();
+});
+
+filterRombel.addEventListener("change",()=>{
+  filterAndRender();
+});
+
+exportJSONBtn.onclick = ()=>{
+  const dataStr = JSON.stringify(filteredData,null,2);
+  const blob = new Blob([dataStr],{type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href=url; a.download="data_siswa.json"; a.click();
+  URL.revokeObjectURL(url);
+};
+
+function filterAndRender(){
+  const query=searchInput.value.toLowerCase();
+  const rombelVal = filterRombel.value;
+  filteredData = jsonData.filter(r=>{
+    const kolomNama = Object.keys(r).find(k=>k.toLowerCase().includes("nama"));
+    const namaMatch = r[kolomNama]?.toString().toLowerCase().includes(query);
+    const kolomRombel = Object.keys(r).find(k=>k.toLowerCase().includes("rombel"));
+    const rombelMatch = !rombelVal || r[kolomRombel]===rombelVal;
+    return namaMatch && rombelMatch;
+  });
+  renderTable(filteredData);
+  buatRekap(filteredData);
+  updateChart(filteredData);
+}
+
+function renderTable(data){
+  if(data.length===0){ filteredTable.innerHTML="<p>Tidak ada data.</p>"; return; }
+  const kolomNama = Object.keys(data[0]).find(h=>h.toLowerCase().includes("nama"));
+  const kolomJK = Object.keys(data[0]).find(h=>h.toLowerCase().includes("jk"));
+  const kolomNISN = Object.keys(data[0]).find(h=>h.toLowerCase().includes("nisn"));
+  const kolomTempat = Object.keys(data[0]).find(h=>h.toLowerCase().includes("tempat"));
+  const kolomTanggal = Object.keys(data[0]).find(h=>h.toLowerCase().includes("tanggal"));
+
+  let table = `<table class="table table-striped table-bordered">
+    <thead class="table-dark"><tr>
+    <th>No</th><th>Nama</th><th>JK</th><th>NISN</th><th>Tempat Lahir</th><th>Tanggal Lahir</th>
+    </tr></thead><tbody>`;
+  data.forEach((row,i)=>{
+    table+=`<tr>
+      <td>${i+1}</td>
+      <td><a href="#" class="link-nama" data-index="${i}">${row[kolomNama]}</a></td>
+      <td>${row[kolomJK]}</td>
+      <td>${row[kolomNISN]}</td>
+      <td>${row[kolomTempat]}</td>
+      <td>${row[kolomTanggal]}</td>
+    </tr>`;
+  });
+  table+="</tbody></table>";
+  filteredTable.innerHTML=table;
+
+  document.querySelectorAll(".link-nama").forEach(el=>{
+    el.addEventListener("click",e=>{
+      e.preventDefault();
+      const idx=el.getAttribute("data-index");
+      tampilkanDetail(data[idx]);
+    });
+  });
+}
+
+function tampilkanDetail(siswa){
+  let html=`<table class="table table-bordered table-striped">`;
+  for(const key in siswa){ html+=`<tr><th style="width:30%">${key}</th><td>${siswa[key]}</td></tr>`; }
+  html+="</table>";
+  document.getElementById("siswaDetail").innerHTML=html;
+  const modal=new bootstrap.Modal(document.getElementById("siswaModal")); modal.show();
+}
+
+function buatRekap(data){
+  if(data.length===0){ rekapDiv.innerHTML=""; return; }
+  const kolomRombel=Object.keys(data[0]).find(k=>k.toLowerCase().includes("rombel"));
+  const kolomJK=Object.keys(data[0]).find(k=>k.toLowerCase().includes("jk"));
+
+  const hasil={};
+  data.forEach(row=>{
+    const rombel=(row[kolomRombel]||"").trim();
+    const jk=(row[kolomJK]||"").trim().toUpperCase();
+    if(!rombel||!jk) return;
+    if(!hasil[rombel]) hasil[rombel]={L:0,P:0};
+    if(jk==="L") hasil[rombel].L++;
+    else if(jk==="P") hasil[rombel].P++;
+  });
+
+  let totalL=0,totalP=0;
+  let table=`<table class="table table-bordered"><thead class="table-dark"><tr>
+    <th>Rombel</th><th>Laki-laki (L)</th><th>Perempuan (P)</th><th>Total</th>
+  </tr></thead><tbody>`;
+  for(const rombel in hasil){
+    const {L,P}=hasil[rombel];
+    totalL+=L; totalP+=P;
+    table+=`<tr><td>${rombel}</td><td>${L}</td><td>${P}</td><td>${L+P}</td></tr>`;
+  }
+  table+=`<tfoot class="table-light"><tr><td><b>Total Keseluruhan</b></td><td>${totalL}</td><td>${totalP}</td><td>${totalL+totalP}</td></tr></tfoot></table>`;
+  rekapDiv.innerHTML=table;
+}
+
+function setupFilterRombel(data){
+  if(!data.length) return;
+  const kolomRombel = Object.keys(data[0]).find(k=>k.toLowerCase().includes("rombel"));
+  const rombelSet = new Set(data.map(r=>r[kolomRombel]));
+  filterRombel.innerHTML=`<option value="">-- Filter Rombel --</option>`;
+  rombelSet.forEach(r=>filterRombel.innerHTML+=`<option value="${r}">${r}</option>`);
+  filterRombel.style.display="inline-block";
+}
+
+function setupDataDiriButton(data){
+  if(!data.length) return;
+  btnDataDiri.style.display = 'inline-block';
+  // fill dropdown inside modal
+  ddRombel.innerHTML = `<option value="">-- Pilih Kelas --</option>`;
+  const kolomRombel = Object.keys(data[0]).find(k=>k.toLowerCase().includes("rombel"));
+  const rombelSet = [...new Set(data.map(r=>r[kolomRombel]))].filter(x=>x!==undefined && x!==null && x!=="");
+  rombelSet.forEach(r=> ddRombel.innerHTML += `<option value="${r}">${r}</option>`);
+}
+
+btnDataDiri.addEventListener('click',()=>{
+  const modal = new bootstrap.Modal(document.getElementById('dataDiriModal'));
+  modal.show();
+});
+
+// Generate list per kelas (single line per siswa)
+document.getElementById('generateList').addEventListener('click',()=>{
+  const kelas = ddRombel.value;
+  if(!kelas){
+    dataDiriOutput.innerHTML =
+      `<div class="alert alert-warning">Pilih kelas terlebih dahulu.</div>`;
+    return;
+  }
+
+  const sample = jsonData[0];
+
+  kolomMap = {
+    "Nama": getCol(sample,['nama']),
+    "NISN": getCol(sample,['nisn']),
+    "Tempat Lahir": getCol(sample,['tempat']),
+    "Tanggal Lahir": getCol(sample,['tanggal','ttl']),
+    "JK": getCol(sample,['jk']),
+    "Alamat": getCol(sample,['alamat']),
+    "No HP": getCol(sample,['hp','telp']),
+    "Nama Ayah": getCol(sample,['nama ayah','ayah']),
+    "Nama Ibu": getCol(sample,['nama ibu','ibu'])
+  };
+
+  const colRombel = getCol(sample,['rombel','kelas']);
+  dataDiriAktif = jsonData.filter(r => (r[colRombel]||'') === kelas);
+
+  if(!dataDiriAktif.length){
+    dataDiriOutput.innerHTML = `<div class="alert alert-info">Tidak ada data.</div>`;
+    return;
+  }
+
+  // checkbox
+  const kolomDiv = document.getElementById('kolomExport');
+  kolomDiv.innerHTML = '';
+  Object.keys(kolomMap).forEach(k=>{
+    kolomDiv.innerHTML += `
+      <div class="col">
+        <div class="form-check">
+          <input class="form-check-input kolom-csv" type="checkbox" value="${k}" checked>
+          <label class="form-check-label">${k}</label>
+        </div>
+      </div>`;
+  });
+
+  renderPreview();
+
+  document.querySelectorAll('.kolom-csv').forEach(cb=>{
+    cb.addEventListener('change', renderPreview);
+  });
+});
+
+
+// ================= PREVIEW DINAMIS SESUAI CHECKBOX =================
+function renderPreview(){
+  const kolomDipilih = [...document.querySelectorAll('.kolom-csv:checked')]
+                        .map(c=>c.value);
+
+  if(!kolomDipilih.length){
+    dataDiriOutput.innerHTML =
+      `<div class="alert alert-warning">Pilih minimal satu kolom.</div>`;
+    return;
+  }
+
+  dataDiriOutput.innerHTML = dataDiriAktif.map((s,i)=>{
+    const isi = kolomDipilih.map(k=>{
+      const col = kolomMap[k];
+      return `${k}: ${s[col] ?? ''}`;
+    }).join(' | ');
+
+    return `<div class="data-diri-line">${i+1}. ${isi}</div>`;
+  }).join('<hr>');
+}
+
+
+// print
+document.getElementById('printList').addEventListener('click',()=>{
+  const w = window.open('','_blank');
+  w.document.write(`<html><head><title>Print Data Diri</title><link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"></head><body><div class="container">${dataDiriOutput.innerHTML}</div></body></html>`);
+  w.document.close();
+  w.print();
+});
+
+// download CSV of current shown list
+document.getElementById('downloadCSV').addEventListener('click',()=>{
+  if(!dataDiriAktif.length){
+    alert('Belum ada data.');
+    return;
+  }
+
+  const kolomDipilih = [...document.querySelectorAll('.kolom-csv:checked')]
+                        .map(c=>c.value);
+
+  if(!kolomDipilih.length){
+    alert('Pilih minimal satu kolom.');
+    return;
+  }
+
+  const header = kolomDipilih.join(',');
+  const rows = dataDiriAktif.map(s =>
+    kolomDipilih.map(k=>{
+      const val = s[kolomMap[k]] ?? '';
+      return `"${val.toString().replace(/"/g,'""')}"`;
+    }).join(',')
+  );
+
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob(["\uFEFF"+csv],{type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `data_diri_${ddRombel.value}.csv`;
+  a.click();
+
+  URL.revokeObjectURL(url);
+});
+
+
+
+function updateChart(data){
+  if(!data.length) return;
+  const kolomRombel = Object.keys(data[0]).find(k=>k.toLowerCase().includes("rombel"));
+  const kolomJK = Object.keys(data[0]).find(k=>k.toLowerCase().includes("jk"));
+  const rombels = [...new Set(data.map(r=>r[kolomRombel]))];
+  const laki = rombels.map(r=>data.filter(x=>x[kolomRombel]===r && x[kolomJK].toUpperCase()==="L").length);
+  const perempuan = rombels.map(r=>data.filter(x=>x[kolomRombel]===r && x[kolomJK].toUpperCase()==="P").length);
+
+  if(chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(chartCanvas, {
+    type:'bar',
+    data:{
+      labels:rombels,
+      datasets:[
+        {label:'Laki-laki', data:laki, backgroundColor:'rgba(54,162,235,0.6)'},
+        {label:'Perempuan', data:perempuan, backgroundColor:'rgba(255,99,132,0.6)'}
+      ]
+    },
+    options:{
+      responsive:true,
+      plugins:{ legend:{position:'top'} },
+      scales:{ y:{ beginAtZero:true } }
+    }
+  });
+}
+</script>
+
+</body>
+</html>
